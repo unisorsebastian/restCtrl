@@ -67,7 +67,7 @@
  C:\Users\Sebastian\Arduino\libraries\ArduinoJson\src/../include/ArduinoJson/JsonObjectSubscript.hpp \
  C:\Users\Sebastian\Arduino\libraries\ArduinoJson\src/../include/ArduinoJson/JsonArraySubscript.hpp \
  C:\Users\Sebastian\Arduino\libraries\ArduinoJson\src/../include/ArduinoJson/StaticJsonBuffer.hpp \
- ../restCtrl.ino
+ C:\Users\Sebastian\Arduino\libraries\IRremote/IRremote.h ../restCtrl.ino
 
 C:\eclipseArduino\arduinoPlugin\packages\arduino\hardware\avr\1.6.11\cores\arduino/Arduino.h:
 
@@ -204,5 +204,7 @@ C:\Users\Sebastian\Arduino\libraries\ArduinoJson\src/../include/ArduinoJson/Json
 C:\Users\Sebastian\Arduino\libraries\ArduinoJson\src/../include/ArduinoJson/JsonArraySubscript.hpp:
 
 C:\Users\Sebastian\Arduino\libraries\ArduinoJson\src/../include/ArduinoJson/StaticJsonBuffer.hpp:
+
+C:\Users\Sebastian\Arduino\libraries\IRremote/IRremote.h:
 
 ../restCtrl.ino:

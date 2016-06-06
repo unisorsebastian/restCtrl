@@ -10,6 +10,7 @@ RM := rm -f
 -include sources.mk
 -include subdir.mk
 -include libraries/OneWire/subdir.mk
+-include libraries/IRremote/subdir.mk
 -include libraries/DallasTemperature/subdir.mk
 -include libraries/ArduinoJson/src/Internals/subdir.mk
 -include libraries/ArduinoJson/src/subdir.mk

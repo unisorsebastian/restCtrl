@@ -2,17 +2,21 @@
 #include "DallasTemperature.h"
 #include "ArduinoJson.h"
 #include "Arduino.h"
+#include "IRremote.h"
 // Data wire is plugged into port 2 on the Arduino
 #define ONE_WIRE_BUS 2
 #define TEMPERATURE_PRECISION 10
 
 const int led = 13;
+//const int RECV_PIN = 11;
+//const int khz = 38;
 const int waterWastePin = 4;
 const int NUMBER_OF_THERMO = 3;
-const char endLineDelimiter = '|';
 const int readCommandMaxTime = 5000UL;
-const char END_LINE_CHAR = '|';
 const int MAX_BUFFER_LEN = 128;
+const int delayTime = 200;
+const char endLineDelimiter = '|';
+const char END_LINE_CHAR = '|';
 
 char commandArray[1024];
 char commandBuffer[MAX_BUFFER_LEN];
@@ -24,6 +28,9 @@ unsigned long loopCount = 0;
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 DeviceAddress thermoX[NUMBER_OF_THERMO];
+//IRrecv irrecv(RECV_PIN);
+IRsend irsend;
+decode_results results;
 
 const String entityMapping[] = { "thermometer", "startHeating", "lightOn", "lightOff", "lightState", "exposeMethods",
 		"getWaterWasteState" };
@@ -34,7 +41,8 @@ void setup() {
 		// wait serial port initialization
 	}
 	pinMode(led, OUTPUT);
-	digitalWrite(led,1);
+	//enable IR reader
+//	irrecv.enableIRIn();
 	//water waste connection
 	pinMode(waterWastePin, INPUT);
 	// Start up the library
@@ -47,23 +55,25 @@ void setup() {
 }
 
 void loop() {
-	delay(1000);
+	delay(delayTime);
 	loopCount++;
-
+//	irRead();
+//	if (loopCount % 50 == 0) {
+//		irSend();
+//	}
 	if (Serial.available()) {
-		digitalWrite(led,0);
 		readSerialInput();
 		StaticJsonBuffer<200> jsonBuffer;
 		JsonObject& request = jsonBuffer.parseObject(commandBuffer);
 		if (!request.success()) {
-			reportError("fail parse command-"+String(commandBuffer));
+			reportError("fail parse command-" + String(commandBuffer));
 			memset(commandBuffer, 0, sizeof(commandBuffer));
 		} else {
 			callHandler(request);
 		}
 		memset(commandBuffer, 0, sizeof(commandBuffer));
 	}
-	if (loopCount % 5 == 0) {
+	if (loopCount % 100 == 0) {
 		respondAnyway();
 	}
 }
@@ -126,7 +136,6 @@ String getDeviceAddress(DeviceAddress deviceAddress) {
 	return result;
 }
 
-
 void reportError(String message) {
 	String out = "";
 	StaticJsonBuffer<200> jsonBuffer;
@@ -145,7 +154,6 @@ void reportError(String message) {
 }
 
 void respondAnyway() {
-	digitalWrite(led,!digitalRead(led));
 	String out = "";
 	StaticJsonBuffer<200> jsonBuffer;
 	JsonObject& response = jsonBuffer.createObject();

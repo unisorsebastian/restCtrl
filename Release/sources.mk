@@ -42,5 +42,6 @@ core/core \
 libraries/ArduinoJson/src/Internals \
 libraries/ArduinoJson/src \
 libraries/DallasTemperature \
+libraries/IRremote \
 libraries/OneWire \
 
