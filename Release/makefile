@@ -9,7 +9,10 @@ RM := rm -f
 # All of the sources participating in the build are defined here
 -include sources.mk
 -include subdir.mk
+-include libraries/SPI/src/subdir.mk
+-include libraries/RF24/subdir.mk
 -include libraries/OneWire/subdir.mk
+-include libraries/MemoryFree/subdir.mk
 -include libraries/IRremote/subdir.mk
 -include libraries/DallasTemperature/subdir.mk
 -include libraries/ArduinoJson/src/Internals/subdir.mk

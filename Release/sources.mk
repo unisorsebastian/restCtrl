@@ -43,5 +43,8 @@ libraries/ArduinoJson/src/Internals \
 libraries/ArduinoJson/src \
 libraries/DallasTemperature \
 libraries/IRremote \
+libraries/MemoryFree \
 libraries/OneWire \
+libraries/RF24 \
+libraries/SPI/src \
 

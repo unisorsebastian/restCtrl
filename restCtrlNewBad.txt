@@ -1,0 +1,235 @@
+#include "OneWire.h"
+#include "DallasTemperature.h"
+#include "ArduinoJson.h"
+#include "Arduino.h"
+#include "IRremote.h"
+#include "SPI.h"
+#include "nRF24L01.h"
+#include "RF24.h"
+// Data wire is plugged into port 2 on the Arduino
+#define ONE_WIRE_BUS 2
+#define TEMPERATURE_PRECISION 9
+
+const int LED_PORT = 13;
+const int WATER_WASTE_PIN = 4;
+const int NUMBER_OF_THERMO = 6;
+const int MAX_BUFFER_LEN = 128;
+const int LOOP_DELAY_TIME = 200;
+const char END_LINE_CHAR = '|';
+const uint64_t PIPE = 0xE8E8F0F0E1LL;
+const unsigned long READ_COMMAND_MAX_TIME = 5000;
+
+char commandArray[1024];
+char commandBuffer[MAX_BUFFER_LEN];
+
+unsigned long startLoopTime;
+unsigned long readCommandStartTime;
+unsigned long loopCount = 0;
+
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature sensors(&oneWire);
+DeviceAddress thermoAddress[NUMBER_OF_THERMO];
+RF24 radioR(9, 10);
+
+const String entityMapping[] = { "thermometer", "startHeating", "lightOn", "lightOff", "lightState", "exposeMethods",
+		"getWaterWasteState" };
+
+void setup() {
+	Serial.begin(9600);
+	while (!Serial) {
+		// wait serial port initialization
+	}
+	pinMode(LED_PORT, OUTPUT);
+	//water waste connection
+	pinMode(WATER_WASTE_PIN, INPUT);
+
+//	initRadio();
+}
+
+void loop() {
+	loopCount++;
+	delay(LOOP_DELAY_TIME);
+	StaticJsonBuffer<200> jsonBuffer;
+	if (Serial.available()) {
+		readSerialInput();
+		JsonObject& request = jsonBuffer.parseObject(commandBuffer);
+
+		if (!request.success()) {
+			generalMessage("error", "fail parse command-" + String(commandBuffer));
+			memset(commandBuffer, 0, sizeof(commandBuffer));
+		} else {
+			callHandler(request);
+		}
+		memset(commandBuffer, 0, sizeof(commandBuffer));
+	}
+	if (loopCount % 100 == 0) {
+		//respondAnyway();
+	}
+}
+void thermometersHandler(JsonObject& request) {
+	char out[512];
+	StaticJsonBuffer<200> jsonBuffer;
+	JsonObject& response = jsonBuffer.createObject();
+	response["arduinoRequest"] = request;
+	JsonArray& data = response.createNestedArray("response");
+
+	for (int i = 0; i < NUMBER_OF_THERMO; i++) {
+		JsonObject& entity = jsonBuffer.createObject();
+		float tempC = sensors.getTempC(thermoAddress[i]);
+		entity["name"] = getDeviceAddress(thermoAddress[i]);
+		entity["temperature"] = tempC;
+		data.add(entity);
+	}
+	response.printTo(out, 512);
+	Serial.println(out);
+}
+
+void thermoXHandler(JsonObject& request) {
+	String out = "";
+	StaticJsonBuffer<200> jsonBuffer;
+	JsonObject& response = jsonBuffer.createObject();
+	response["arduinoRequest"] = request;
+	const char* sensorId = request["sensorId"];
+	JsonArray& data = response.createNestedArray("response");
+	JsonObject& entity = jsonBuffer.createObject();
+
+	for (int i = 0; i < NUMBER_OF_THERMO; i++) {
+		String deviceAddress = getDeviceAddress(thermoAddress[i]);
+		if (deviceAddress.equalsIgnoreCase((String) sensorId)) {
+			float tempC = sensors.getTempC(thermoAddress[i]);
+			entity["name"] = deviceAddress;
+			entity["temperature"] = tempC;
+			data.add(entity);
+			break;
+		}
+	}
+	response.printTo(out);
+	Serial.println(out);
+}
+
+void callHandler(JsonObject& request) {
+	const char* entityName = request["requestEntity"];
+	Serial.println("got the request");
+	if (String(entityName).equals("thermometer")) {
+		thermometersHandler(request);
+	} else if (String(entityName).equals("thermoX")) {
+		thermoXHandler(request);
+	}
+}
+
+void readSerialInput() {
+	int i = 0;
+	char c = 0;
+	readCommandStartTime = millis();
+	while (i < MAX_BUFFER_LEN) {
+		while (!Serial.available()) {
+			if (readCommandStartTime + READ_COMMAND_MAX_TIME < millis()) {
+				generalMessage("error", "too much time");
+				return;
+			}
+		}
+		c = Serial.read();
+		if (c == END_LINE_CHAR) {
+			Serial.println("finish read command");
+			break;
+		}
+		commandBuffer[i] = c;
+		i++;
+	}
+	if (i == MAX_BUFFER_LEN) {
+		generalMessage("error", "command too long");
+		memset(commandBuffer, 0, sizeof(commandBuffer));
+	}
+}
+
+String getDeviceAddress(DeviceAddress deviceAddress) {
+	String result = "";
+	for (uint8_t i = 0; i < NUMBER_OF_THERMO; i++) {
+		// zero pad the address if necessary
+		if (deviceAddress[i] < 16)
+			result += "0";
+		result += String(deviceAddress[i], HEX);
+	}
+	return result;
+}
+
+void generalMessage(String entityName, String message) {
+	String out = "";
+	StaticJsonBuffer<200> jsonBuffer;
+	JsonObject& response = jsonBuffer.createObject();
+	JsonObject& fakeRequest = jsonBuffer.createObject();
+	response["arduinoRequest"] = fakeRequest;
+	JsonObject& entity = jsonBuffer.createObject();
+	fakeRequest["requestEntity"] = entityName;
+	fakeRequest["timestamp"] = String(loopCount, DEC);
+	JsonArray& data = response.createNestedArray("response");
+	entity["name"] = entityName;
+	entity["message"] = message;
+	data.add(entity);
+	response.printTo(out);
+	Serial.println(out);
+}
+
+void respondAnyway() {
+	initTemperatureSensors();
+	String out = "";
+	for (int i = 0; i < NUMBER_OF_THERMO; i++) {
+		StaticJsonBuffer<200> jsonBuffer;
+		JsonArray& root = jsonBuffer.createArray();
+		JsonObject& fakeRequest = root.createNestedObject().createNestedObject("arduinoRequest");
+		JsonObject& data = root.createNestedObject().createNestedObject("response");
+
+		fakeRequest["requestEntity"] = "automaticStatus";
+		fakeRequest["timestamp"] = loopCount;
+
+		float tempC = sensors.getTempC(thermoAddress[i]);
+		data["name"] = getDeviceAddress(thermoAddress[i]);
+		data["temperature"] = tempC;
+
+		root.printTo(Serial);
+	}
+	Serial.println(out);
+}
+
+void respondAnywayBackup() {
+	initTemperatureSensors();
+	String out = "";
+	StaticJsonBuffer<200> jsonBuffer;
+	JsonObject& root = jsonBuffer.createObject();
+	JsonObject& fakeRequest = jsonBuffer.createObject();
+	JsonArray& data = root.createNestedArray("response");
+	fakeRequest["requestEntity"] = "automaticStatus";
+	fakeRequest["timestamp"] = loopCount;
+	root["arduinoRequest"] = fakeRequest;
+	for (int i = 0; i < NUMBER_OF_THERMO; i++) {
+		float tempC = sensors.getTempC(thermoAddress[i]);
+		JsonObject& entity = jsonBuffer.createObject();
+		entity["name"] = getDeviceAddress(thermoAddress[i]);
+		entity["temperature"] = tempC;
+		data.add(entity);
+	}
+	root.printTo(Serial);
+	Serial.println(out);
+}
+
+void initTemperatureSensors() {
+	sensors.begin();
+	for (int i = 0; i < NUMBER_OF_THERMO; i++) {
+		sensors.setResolution(thermoAddress[i], TEMPERATURE_PRECISION);
+		oneWire.search(thermoAddress[i]);
+		//Serial.println(getDeviceAddress(thermoX[i]));
+	}
+	sensors.requestTemperatures();
+}
+
+void initRadio() {
+//set radio receiver
+	radioR.begin();
+	radioR.setDataRate(RF24_250KBPS);
+	radioR.setPALevel(RF24_PA_MAX);
+	radioR.openReadingPipe(1, PIPE);
+	radioR.startListening();
+	radioR.setPayloadSize(MAX_BUFFER_LEN);
+	radioR.setAutoAck(true);
+	radioR.setRetries(200, 3);
+}
